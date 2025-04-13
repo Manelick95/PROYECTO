@@ -23,6 +23,7 @@ def procesar_archivo(file1_path, file2_path, output_path):
 
         df_informe.columns = df_informe.columns.str.strip()
         df_informe["FEC.FACT"] = pd.to_datetime(df_informe["FEC.FACT"], errors='coerce', dayfirst=True)
+        df_informe["Fec.doc."] = pd.to_datetime(df_informe["Fec.doc."], errors='coerce', dayfirst=True)
         df_informe["VENDEDOR"] = df_informe["VENDEDOR"].astype(str).str.strip().str.upper()
 
         porcentaje_map = {
@@ -32,12 +33,16 @@ def procesar_archivo(file1_path, file2_path, output_path):
             "HUERPEL": "15%"
         }
 
-        # 🟩 Mapeo CONCESI → hoja de archivo de niveles
         mapeo_concesis = {
             "1": "PACHUCA",
             "19": "TIZAYUCA",
             "2": "TULANCINGO",
-            "3": "HUAUCHINANGO"
+            "3": "HUAUCHINANGO",
+            "12": "APIZACO",
+            "13": "TLAXCALA",
+            "20": "ANGELOPOLIS",
+            "21": "SAN MANUEL",
+            "22": "CHOLULA"
         }
 
         xls_niveles = pd.ExcelFile(file2_path)
@@ -50,7 +55,6 @@ def procesar_archivo(file1_path, file2_path, output_path):
 
             df_niveles = pd.read_excel(xls_niveles, sheet_name=hoja_encontrada, header=None, dtype=str)
 
-            # Detectar secciones "KPI’S MES ..."
             secciones = []
             for i, row in df_niveles.iterrows():
                 for cell in row:
@@ -64,7 +68,7 @@ def procesar_archivo(file1_path, file2_path, output_path):
                             }
                             mes = meses_es.get(mes_str)
                             anio = int(anio_str)
-                            fecha_objetivo = datetime(anio, mes, 1) - relativedelta(months=1)
+                            fecha_objetivo = datetime(anio, mes, 1)
                             secciones.append({
                                 "fila_inicio": i + 1,
                                 "mes": fecha_objetivo.month,
@@ -157,6 +161,19 @@ def procesar_archivo(file1_path, file2_path, output_path):
             df_informe["DESC.PRODUCTO"] = df_informe.groupby(["VIN", "REFERENCIA"])["DESC.PRODUCTO"].transform(lambda x: " | ".join(x.dropna().unique()))
             df_informe["PRECIO"] = df_informe.groupby(["VIN", "REFERENCIA"])["PRECIO"].transform(lambda x: " | ".join(x.dropna().unique()))
 
+        if {"REFERENCIA", "Fec.doc.", "Cod.d", "CONC.DOCUM."}.issubset(df_informe.columns):
+            df_informe["Fec.doc."] = pd.to_datetime(df_informe["Fec.doc."], errors='coerce')
+            df_sorted = df_informe.sort_values("Fec.doc.")
+            last_entries = df_sorted.groupby("REFERENCIA").last().reset_index()
+            df_informe = df_informe.merge(last_entries[["REFERENCIA", "Cod.d", "CONC.DOCUM.", "Fec.doc."]], on="REFERENCIA", suffixes=("", "_ultimo"), how="left")
+            df_informe["Cod.d"] = df_informe["Cod.d_ultimo"]
+            df_informe["CONC.DOCUM."] = df_informe["CONC.DOCUM._ultimo"]
+            df_informe["Fec.doc."] = df_informe["Fec.doc._ultimo"].dt.strftime('%d/%m/%Y')
+            df_informe.drop(columns=["Cod.d_ultimo", "CONC.DOCUM._ultimo", "Fec.doc._ultimo"], inplace=True)
+
+        # 🟩 Crear hoja vacía llamada "Cod16"
+        wb.add_sheet("Cod16")
+
         for idx, sheet_name in enumerate(rb.sheet_names()):
             sheet = wb.get_sheet(idx)
             if sheet_name == "Informe":
@@ -164,10 +181,7 @@ def procesar_archivo(file1_path, file2_path, output_path):
                     sheet.write(0, col_idx, col_name)
                 for row_idx, row in enumerate(df_informe.itertuples(index=False), start=1):
                     for col_idx, value in enumerate(row):
-                        if isinstance(value, str) and value.replace('.', '', 1).isdigit():
-                            sheet.write(row_idx, col_idx, round(float(value), 2))
-                        else:
-                            sheet.write(row_idx, col_idx, value)
+                        sheet.write(row_idx, col_idx, value)
 
         wb.save(output_path)
         print(f"✅ Archivo procesado correctamente en {output_path}")
