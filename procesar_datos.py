@@ -46,7 +46,7 @@ def procesar_archivo(file1_path, file2_path, output_path):
         }
 
         xls_niveles = pd.ExcelFile(file2_path)
-
+s
         for concesi_codigo, nombre_clave in mapeo_concesis.items():
             hoja_encontrada = next((s for s in xls_niveles.sheet_names if nombre_clave in s.upper()), None)
             if hoja_encontrada is None:
@@ -111,7 +111,9 @@ def procesar_archivo(file1_path, file2_path, output_path):
                     df_tabla = df_tabla[[col_vendedor, col_nivel]]
                     df_tabla.columns = ["VENDEDOR", "NIVEL"]
                     df_tabla["VENDEDOR"] = df_tabla["VENDEDOR"].astype(str).str.strip().str.upper()
-                    df_tabla["NIVEL"] = df_tabla["NIVEL"].astype(str).str.strip().str.upper()
+                    df_tabla["NIVEL"] = df_tabla["NIVEL"].fillna("").astype(str).str.strip().str.upper()
+                    df_tabla.loc[df_tabla["NIVEL"] == "", "NIVEL"] = "BASICO"  # 🟩 Aquí se asigna BASICO si está vacío
+
                     niveles_dict = df_tabla.set_index("VENDEDOR")["NIVEL"].to_dict()
 
                     registros = df_informe[
@@ -171,7 +173,6 @@ def procesar_archivo(file1_path, file2_path, output_path):
             df_informe["Fec.doc."] = df_informe["Fec.doc._ultimo"].dt.strftime('%d/%m/%Y')
             df_informe.drop(columns=["Cod.d_ultimo", "CONC.DOCUM._ultimo", "Fec.doc._ultimo"], inplace=True)
 
-        # 🟩 Crear hoja vacía llamada "Cod16"
         wb.add_sheet("Cod16")
 
         for idx, sheet_name in enumerate(rb.sheet_names()):
