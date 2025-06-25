@@ -46,7 +46,7 @@ def procesar_archivo(file1_path, file2_path, output_path):
         }
 
         xls_niveles = pd.ExcelFile(file2_path)
-s
+
         for concesi_codigo, nombre_clave in mapeo_concesis.items():
             hoja_encontrada = next((s for s in xls_niveles.sheet_names if nombre_clave in s.upper()), None)
             if hoja_encontrada is None:
